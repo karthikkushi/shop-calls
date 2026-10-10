@@ -26,6 +26,8 @@ def request(path,method='GET',body=None):
 
 def sync():
     from . import shop_ops as ops
+    if config() and config().get('cloud_research') and not os.getenv('FIELDWORK_CLOUD_WORKER'):
+        return {'synced':False,'reason':'Cloud worker owns research metadata.'}
     # Upload research metadata only. Existing cloud responses always win.
     with ops.connect() as c:
         leads=[ops.lead_record(r) for r in c.execute('SELECT * FROM leads')]

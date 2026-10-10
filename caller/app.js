@@ -3,7 +3,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;',
 const labels={new:'To call',no_answer:'No answer',callback:'Follow-up',interested:'Interested',not_interested:'Not interested',booking_requested:'Booking requested',do_not_contact:'Do not contact'};
 const categories={desk:'Desk organisation',pet:'Pet grooming',home:'Home storage',travel:'Travel organisation',phone:'Phone accessories'};
 const state={code:localStorage.getItem('shop-caller-code')||'',caller:localStorage.getItem('shop-caller-name')||'',
-  leads:[],topics:[],country:'IN',tab:'queue',selected:null,requestId:null,loading:false,syncing:false};
+  leads:[],topics:[],country:'IN',tab:'queue',selected:null,requestId:null,loading:false,syncing:false,detailId:null};
 const queued=()=>JSON.parse(localStorage.getItem('shop-call-queue')||'[]');
 const putQueue=value=>localStorage.setItem('shop-call-queue',JSON.stringify(value));
 const date=value=>new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -67,11 +67,11 @@ async function load(){
   if(!state.code||state.loading)return;
   state.loading=true;
   try{
-    const [leads,topics]=await Promise.all([api('/leads'),api('/topics')]);
+    const [leads,topics]=await Promise.all([api('/leads'),api('/topics').catch(()=>({topics:state.topics}))]);
     state.leads=leads.leads;state.topics=topics.topics;
     localStorage.setItem('shop-cached-leads',JSON.stringify(state.leads));
     $('#products').innerHTML=state.topics.map(t=>`<option value="${escape(t.product)}"></option>`).join('');
-    render();const n=queued().length;message(n?`${n} phone response${n===1?'':'s'} waiting to sync.`:'');
+    render();if($('#details').open&&state.detailId){const scroll=$('#details').scrollTop;openDetails(state.detailId);$('#details').scrollTop=scroll;}const n=queued().length;message(n?`${n} phone response${n===1?'':'s'} waiting to sync.`:'');
   }catch(e){
     if(e.status===401){signOut(false);$('#login-error').textContent='Your access code is no longer valid.';}
     else{if(!state.leads.length)state.leads=JSON.parse(localStorage.getItem('shop-cached-leads')||'[]');render();message(e.message+' Showing last downloaded contacts.',true);}
@@ -114,7 +114,7 @@ $('#logout').addEventListener('click',()=>{
   if(queued().length){message('Sync or remove your pending responses before signing out.',true);return;}$('#settings').close();signOut();
 });
 $('#refresh').addEventListener('click',()=>load().then(flush));
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{state.tab=b.dataset.tab;render();}));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{state.tab=b.dataset.tab;render();load().then(flush);}));
 $('#country').addEventListener('change',()=>{state.country=$('#country').value;$('#city').value='';render();});$('#city').addEventListener('change',render);$('#response').addEventListener('change',render);$('#category').addEventListener('change',render);$('#search').addEventListener('input',render);
 
 function bookingFields(){
@@ -159,19 +159,31 @@ $('#outcome-form').addEventListener('submit',async e=>{
   await flush();
 });
 window.addEventListener('online',()=>load().then(flush));
-setInterval(()=>{if(state.code&&!$('#outcome').open)load().then(flush);},20000);
+function refreshOnReturn(){if(state.code&&!document.hidden&&!$('#outcome').open)load().then(flush);}
+window.addEventListener('focus',refreshOnReturn);window.addEventListener('pageshow',refreshOnReturn);document.addEventListener('visibilitychange',refreshOnReturn);
+setInterval(refreshOnReturn,20000);
 if(state.code)openApp();
-if('serviceWorker' in navigator&&window.isSecureContext)navigator.serviceWorker.register(new URL('./sw.js',import.meta.url),{scope:new URL('./',import.meta.url).pathname}).catch(()=>{});
+if('serviceWorker' in navigator&&window.isSecureContext){
+ let updating=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{
+  if(updating)return;updating=true;
+  const reload=()=>{const url=new URL(location.href);url.searchParams.set('rev','sync-20261011');location.replace(url.href);};
+  if($('#outcome').open||$('#details').open||$('#settings').open){message('App update ready. Close this panel and refresh to load it.');document.addEventListener('close',reload,{capture:true,once:true});}
+  else reload();
+ });
+ navigator.serviceWorker.register(new URL('./sw.js',import.meta.url),{scope:new URL('./',import.meta.url).pathname,updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
+}
 
 $('#response').innerHTML+=Object.entries(labels).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
 
 function openDetails(id){
+ state.detailId=id;
  const l=state.leads.find(x=>x.id===id);if(!l)return;
  const blocked=l.status==='do_not_contact',pending=queued().some(q=>q.lead_id===id),phone=/^\+\d{7,15}$/.test(l.phone||'')?l.phone:'';
  const maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(l.name+' '+l.city+' '+l.country);
  $('#detail-body').innerHTML=`<div class="sheet-head"><h2>${escape(l.name)}</h2><button class="quiet" data-dismiss="details">Close</button></div><p>${escape(l.city)} · ${escape(l.country)} · ${escape(localTime(l))}</p><div class="detail-box"><strong class="phone-number">${escape(phone||'Phone unavailable')}</strong><p>Public contact · verify the shop and buyer first.</p>${l.shop_category?`<p>Map shop type: ${escape(l.shop_category.replaceAll('_',' '))}</p>`:''}<div class="contact-grid">${phone&&!blocked&&!pending&&l.callable?`<a class="primary" href="tel:${escape(phone)}">Call shop</a><a class="contact-link" href="https://wa.me/${phone.slice(1)}" target="_blank" rel="noopener">WhatsApp</a>`:''}<a class="contact-link" href="${escape(maps)}" target="_blank" rel="noopener">Maps</a>${safeHref(l.website)?`<a class="contact-link" href="${safeHref(l.website)}" target="_blank" rel="noopener">Website</a>`:''}${phone?'<button class="contact-link" id="copy-phone">Copy phone</button>':''}</div><p class="hint">WhatsApp availability and shop opening hours are unverified.</p></div>${briefHtml(l)}${l.notes?`<div class="detail-box"><h3>Last saved notes</h3><p>${escape(l.notes)}</p></div>`:''}${l.followup?`<p>Follow-up: ${escape(date(l.followup))}</p>`:''}<a class="contact-link" href="${safeHref(l.source_url)}" target="_blank" rel="noopener">View contact source</a>${!blocked&&!pending?'<button class="primary" id="detail-save">Record response / booking</button>':'<p class="hint">'+(blocked?'Do not contact: outreach is blocked.':'Sync the pending response before another call.')+'</p>'}`;
  $('#copy-phone')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(phone);$('#copy-phone').textContent='Copied';}catch{$('#copy-phone').textContent='Select the phone number above';}});
- $('#detail-save')?.addEventListener('click',()=>{$('#details').close();openOutcome(id);});$('#details').showModal();
+ $('#detail-save')?.addEventListener('click',()=>{$('#details').close();openOutcome(id);});if(!$('#details').open)$('#details').showModal();
 }
 document.addEventListener('click',e=>{const b=e.target.closest('[data-dismiss]');if(b)document.getElementById(b.dataset.dismiss).close();});
 $('#settings-open').addEventListener('click',()=>{const f=$('#settings-form');f.elements.caller.value=state.caller;f.elements.size.value=localStorage.getItem('shop-text-size')||'16';$('#sync-status').textContent=(navigator.onLine?'Online':'Offline')+' · '+queued().length+' responses waiting to sync';$('#settings').showModal();});
