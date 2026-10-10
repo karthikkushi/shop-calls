@@ -287,6 +287,18 @@ async def collect_run(identifier):
             except Exception:
                 topic['supplier_products']=[]
                 result['supplier'].append({'topic':topic['id'],'status':'unavailable'})
+        from .shop_briefs import generate
+        result['phase']='Preparing shop-specific call briefs'
+        progress()
+        with ops.connect() as c:
+            brief_leads=[json.loads(r[0]) for r in c.execute('SELECT payload FROM leads')]
+        briefs=await generate(brief_leads)
+        with ops.connect() as c:
+            for lead in brief_leads:
+                if lead['id'] in briefs:
+                    lead['call_brief']=briefs[lead['id']]
+                    c.execute('UPDATE leads SET payload=? WHERE id=?',(json.dumps(lead),lead['id']))
+        result['call_briefs']={'prepared':len(briefs),'ai_reviewed':sum(b['method'].startswith('AI') for b in briefs.values())}
         result['phase']='Writing research notes'
         progress()
         notes,result['model']=await model_notes(topics)
