@@ -3,7 +3,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;',
 const labels={new:'To call',no_answer:'No answer',callback:'Follow-up',interested:'Interested',not_interested:'Not interested',booking_requested:'Booking requested',do_not_contact:'Do not contact'};
 const categories={desk:'Desk organisation',pet:'Pet grooming',home:'Home storage',travel:'Travel organisation',phone:'Phone accessories'};
 const state={code:localStorage.getItem('shop-caller-code')||'',caller:localStorage.getItem('shop-caller-name')||'',
-  leads:[],topics:[],tab:'queue',selected:null,requestId:null,loading:false,syncing:false};
+  leads:[],topics:[],country:'IN',tab:'queue',selected:null,requestId:null,loading:false,syncing:false};
 const queued=()=>JSON.parse(localStorage.getItem('shop-call-queue')||'[]');
 const putQueue=value=>localStorage.setItem('shop-call-queue',JSON.stringify(value));
 const date=value=>new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -29,7 +29,7 @@ function render(){
   const pending=new Map(queued().map(q=>[q.lead_id,q]));
   const count=status=>state.leads.filter(l=>l.status===status).length;
   $('#counts').innerHTML=`<div><b>${count('new')}</b><span>To call</span></div><div><b>${count('interested')}</b><span>Interested</span></div><div><b>${count('booking_requested')}</b><span>Requests</span></div>`;
-  const oldCountry=$('#country').value;
+  const oldCountry=state.country;
   $('#country').innerHTML='<option value="">All countries</option>'+[...new Set(state.leads.map(l=>l.country))].sort().map(c=>`<option value="${escape(c)}">${escape(c)}</option>`).join('');
   $('#country').value=oldCountry;
   const country=$('#country').value,category=$('#category').value,search=$('#search').value.toLowerCase().trim();
@@ -107,7 +107,7 @@ $('#logout').addEventListener('click',()=>{
 });
 $('#refresh').addEventListener('click',()=>load().then(flush));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{state.tab=b.dataset.tab;render();}));
-['country','category'].forEach(id=>$('#'+id).addEventListener('change',render));$('#search').addEventListener('input',render);
+$('#country').addEventListener('change',()=>{state.country=$('#country').value;render();});$('#category').addEventListener('change',render);$('#search').addEventListener('input',render);
 
 function bookingFields(){
   const status=$('#outcome-status').value,booking=status==='booking_requested',callback=status==='callback';
