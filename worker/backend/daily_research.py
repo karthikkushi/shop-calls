@@ -287,6 +287,12 @@ async def collect_run(identifier):
             except Exception:
                 topic['supplier_products']=[]
                 result['supplier'].append({'topic':topic['id'],'status':'unavailable'})
+        from .product_selection import select
+        result['phase']='Selecting products and supplier shipping estimates'
+        progress()
+        for topic in topics:
+            topic['supplier_recommendation']=await select(topic)
+            progress()
         from .shop_briefs import generate
         result['phase']='Preparing shop-specific call briefs'
         progress()
