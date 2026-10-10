@@ -164,9 +164,9 @@ window.addEventListener('focus',refreshOnReturn);window.addEventListener('pagesh
 setInterval(refreshOnReturn,20000);
 if(state.code)openApp();
 if('serviceWorker' in navigator&&window.isSecureContext){
- let updating=false;
+ let updating=false;const wasControlled=Boolean(navigator.serviceWorker.controller);
  navigator.serviceWorker.addEventListener('controllerchange',()=>{
-  if(updating)return;updating=true;
+  if(updating||!wasControlled)return;updating=true;
   const reload=()=>{const url=new URL(location.href);url.searchParams.set('rev','sync-20261011');location.replace(url.href);};
   if($('#outcome').open||$('#details').open||$('#settings').open){message('App update ready. Close this panel and refresh to load it.');document.addEventListener('close',reload,{capture:true,once:true});}
   else reload();
