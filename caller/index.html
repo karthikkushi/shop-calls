@@ -11,13 +11,13 @@
 <body>
   <section id="login" class="login"><img src="./icon.svg" alt="" width="64" height="64"><h1>Shop Calls</h1><p>Your shop contacts.<br>Your next conversation.</p><form id="login-form"><label>Caller access code<input name="code" type="password" autocomplete="current-password" required></label><label>Your name<input name="caller" autocomplete="name" maxlength="100" required></label><button class="primary">Open my leads</button></form><p id="login-error" role="alert"></p></section>
   <div id="app" hidden>
-    <header><a class="brand" href="./"><img src="./icon.svg" width="32" height="32" alt="">Shop Calls</a><button id="logout" class="quiet">Sign out</button></header>
+    <header><a class="brand" href="./"><img src="./icon.svg" width="32" height="32" alt="">Shop Calls</a><button id="settings-open" class="quiet">Settings</button></header>
     <main><div class="page-title"><div><p id="greeting"></p><h1 id="title">Shops to call</h1></div><button id="refresh" class="quiet" aria-label="Refresh leads">Refresh</button></div>
       <div class="pipeline" id="counts" aria-label="Calling progress"></div>
       <p id="message" class="message" role="status" hidden></p>
       <div class="filters"><label>Country<select id="country"><option value="">All countries</option></select></label><label>Category<select id="category"><option value="">All products</option><option value="desk">Desk organisation</option><option value="pet">Pet grooming</option><option value="home">Home storage</option><option value="travel">Travel organisation</option><option value="phone">Phone accessories</option></select></label></div>
-      <label class="search-label">Find a shop<input id="search" type="search" placeholder="Shop name or city"></label>
-      <div id="leads"></div><p class="attribution">Public business contacts; buying interest unconfirmed.<br>Map data: © OpenStreetMap contributors / Overture Maps.</p>
+      <div class="filters"><label>City<select id="city"><option value="">All cities</option></select></label><label>Response<select id="response"><option value="">All responses</option></select></label></div><label class="search-label">Find a shop<input id="search" type="search" placeholder="Shop name or city"></label>
+      <section id="results-chart" hidden></section><p id="list-count" class="hint"></p><div id="leads"></div><p class="attribution">Public business contacts; buying interest unconfirmed.<br>Map data: © OpenStreetMap contributors / Overture Maps.</p>
     </main>
     <nav class="tabs" aria-label="Call lists"><button data-tab="queue" class="active">To call</button><button data-tab="followup">Follow-ups</button><button data-tab="results">Responses</button><button data-tab="all">All shops</button></nav>
   </div>
@@ -28,4 +28,6 @@
     <label>Notes<textarea name="notes" rows="3" maxlength="2500" placeholder="Needs, buyer name, quantity, agreed next step…"></textarea></label>
     <p id="save-error" role="alert"></p><button class="primary" id="save">Save response</button>
   </form></dialog>
+<dialog id="details"><div id="detail-body"></div></dialog>
+<dialog id="settings"><div class="sheet-head"><h2>Your calling desk</h2><button class="quiet" data-dismiss="settings">Close</button></div><form id="settings-form"><label>Your name<input name="caller" required maxlength="100"></label><label>Text size<select name="size"><option value="16">Medium</option><option value="18">Large</option></select></label><button class="primary">Save settings</button></form><div class="detail-box"><h3>Phone access</h3><p>iPhone: Safari → Share → Add to Home Screen.<br>Android: browser menu → Install app.</p><p id="sync-status"></p><button id="sync-now" class="quiet">Sync now</button></div><a class="primary" href="../dashboard/#shops" target="_blank" rel="noopener">Owner dashboard</a><p class="hint">Uses a separate owner access code.</p><button id="logout" class="quiet">Sign out</button></dialog>
 </body></html>

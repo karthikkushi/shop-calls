@@ -129,10 +129,12 @@ def overture_city(city):
         if addr_country and addr_country.upper() != country: continue
         phone = next((ops.phone_number(p,country) for p in phones or [] if ops.phone_number(p,country)), '')
         if not phone: continue
-        category = next((t['id'] for t in TOPICS if any(x in (hierarchy or [primary]) for x in t['shops'])),None)
+        category = next((t['id'] for t in TOPICS if primary in t['shops']), None)
+        if not category:
+            category = next((t['id'] for t in TOPICS if any(x in (hierarchy or []) for x in t['shops'])), None)
         if not category: continue
         website = next((ops.safe_url(w) for w in websites or [] if ops.safe_url(w)),'')
-        leads.append(dict(id='ov-'+identifier,name=shop,country=country,city=name,timezone=tz,category=category,
+        leads.append(dict(id='ov-'+identifier,name=shop,country=country,city=name,timezone=tz,category=category,shop_category=primary,
             phone=phone,email=(emails or [''])[0],website=website,source_kind='overture',source_id=identifier,
             source_url=f'https://stac.overturemaps.org/{release}/catalog.json',release=release,
             contact_status='map_contact_unverified',checked_at=ops.now_iso(),

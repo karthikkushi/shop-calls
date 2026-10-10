@@ -32,9 +32,12 @@ function render(){
   const oldCountry=state.country;
   $('#country').innerHTML='<option value="">All countries</option>'+[...new Set(state.leads.map(l=>l.country))].sort().map(c=>`<option value="${escape(c)}">${escape(c)}</option>`).join('');
   $('#country').value=oldCountry;
+  const cityBefore=$('#city').value;
+  $('#city').innerHTML='<option value="">All cities</option>'+[...new Set(state.leads.filter(l=>!oldCountry||l.country===oldCountry).map(l=>l.city).filter(Boolean))].sort().map(c=>`<option value="${escape(c)}">${escape(c)}</option>`).join('');$('#city').value=cityBefore;
   const country=$('#country').value,category=$('#category').value,search=$('#search').value.toLowerCase().trim();
   const visible=state.leads.filter(l=>{
     if(country&&l.country!==country||category&&l.category!==category)return false;
+    if($('#city').value&&l.city!==$('#city').value||$('#response').value&&l.status!==$('#response').value)return false;
     if(search&&!`${l.name} ${l.city} ${l.country}`.toLowerCase().includes(search))return false;
     if(state.tab==='queue')return ['new','no_answer'].includes(l.status)&&!pending.has(l.id);
     if(state.tab==='followup')return l.status==='callback';
@@ -45,13 +48,18 @@ function render(){
     const q=pending.get(l.id),tel=/^\+\d{7,15}$/.test(l.phone||'')?l.phone:'';
     const canCall=tel&&l.callable&&!q;
     return `<article class="shop"><div class="shop-heading"><div><h2>${escape(l.name)}</h2><p>${escape(l.city||'')} ${escape(l.country)}</p></div><span class="badge ${escape(l.status)}">${escape(labels[l.status])}</span></div>
-      <p class="category">${escape(categories[l.category]||l.category)}</p><p class="local-time">Shop local time: ${escape(localTime(l))}</p>
+      <p class="category">Suggested: ${escape(categories[l.category]||l.category)}</p><p class="local-time">Shop local time: ${escape(localTime(l))}</p>
       <p class="source">${l.source_kind==='overture'?'Map contact · needs verification':'Public website contact'} · <a href="${safeHref(l.source_url)}" target="_blank" rel="noreferrer">Source</a></p>
       ${l.followup?`<p>Call back ${escape(date(l.followup))}</p>`:''}${l.notes?`<p class="note">${escape(l.notes)}</p>`:''}
       ${q?`<p class="pending">${q.error?escape(q.error):'Response saved on phone; waiting to sync.'}</p><button class="quiet" data-retry="${escape(l.id)}">Review pending response</button>`:''}
       ${l.status==='do_not_contact'?'<p class="note">Further calling is blocked.</p>':`<div class="shop-actions">${canCall?`<a class="primary" href="tel:${escape(tel)}">Call shop</a>`:'<span class="hint">'+(q?'Sync response first':'No callable phone')+'</span>'}<button data-outcome="${escape(l.id)}" ${q?'disabled':''}>Save response</button></div>`}
+      <button class="details-button" data-details="${escape(l.id)}">Details · Maps · WhatsApp · Call script →</button>
     </article>`;
   }).join(''):`<section class="empty"><h2>${state.leads.length?'Nothing in this list yet':'Waiting for shop leads'}</h2><p>${state.leads.length?'Try another filter or open All shops.':'Run daily research from your dashboard. Contacts will appear here.'}</p></section>`;
+  $('#list-count').textContent=visible.length+' shops in this list';
+  $('#results-chart').hidden=state.tab!=='results';
+  const filtered=state.leads.filter(l=>(!country||l.country===country)&&(!$('#city').value||l.city===$('#city').value)&&(!category||l.category===category));
+  $('#results-chart').innerHTML='<h2>Response breakdown</h2>'+['interested','booking_requested','callback','not_interested','no_answer'].map(status=>{const n=filtered.filter(l=>l.status===status).length;return `<div class="chart-row"><span>${labels[status]}</span><progress max="${Math.max(1,filtered.length)}" value="${n}"></progress><b>${n}</b></div>`;}).join('');
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));
 }
 
@@ -103,11 +111,11 @@ $('#login-form').addEventListener('submit',async e=>{
   catch(err){$('#login-error').textContent=err.message;}finally{button.disabled=false;}
 });
 $('#logout').addEventListener('click',()=>{
-  if(queued().length){message('Sync or remove your pending responses before signing out.',true);return;}signOut();
+  if(queued().length){message('Sync or remove your pending responses before signing out.',true);return;}$('#settings').close();signOut();
 });
 $('#refresh').addEventListener('click',()=>load().then(flush));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{state.tab=b.dataset.tab;render();}));
-$('#country').addEventListener('change',()=>{state.country=$('#country').value;render();});$('#category').addEventListener('change',render);$('#search').addEventListener('input',render);
+$('#country').addEventListener('change',()=>{state.country=$('#country').value;$('#city').value='';render();});$('#city').addEventListener('change',render);$('#response').addEventListener('change',render);$('#category').addEventListener('change',render);$('#search').addEventListener('input',render);
 
 function bookingFields(){
   const status=$('#outcome-status').value,booking=status==='booking_requested',callback=status==='callback';
@@ -129,6 +137,7 @@ function openOutcome(id,entry=null){
   bookingFields();$('#outcome').showModal();
 }
 $('#leads').addEventListener('click',e=>{
+  const details=e.target.closest('[data-details]');if(details)openDetails(details.dataset.details);
   const b=e.target.closest('[data-outcome]');if(b)openOutcome(b.dataset.outcome);
   const retry=e.target.closest('[data-retry]');if(retry)openOutcome(retry.dataset.retry,queued().find(q=>q.lead_id===retry.dataset.retry));
 });
@@ -153,3 +162,20 @@ window.addEventListener('online',()=>load().then(flush));
 setInterval(()=>{if(state.code&&!$('#outcome').open)load().then(flush);},20000);
 if(state.code)openApp();
 if('serviceWorker' in navigator&&window.isSecureContext)navigator.serviceWorker.register(new URL('./sw.js',import.meta.url),{scope:new URL('./',import.meta.url).pathname}).catch(()=>{});
+
+$('#response').innerHTML+=Object.entries(labels).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+
+function openDetails(id){
+ const l=state.leads.find(x=>x.id===id);if(!l)return;
+ const blocked=l.status==='do_not_contact',pending=queued().some(q=>q.lead_id===id),phone=/^\+\d{7,15}$/.test(l.phone||'')?l.phone:'';
+ const maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(l.name+' '+l.city+' '+l.country);
+ const topic=state.topics.find(t=>t.id===l.category),product=topic?.product||categories[l.category]||'products';
+ $('#detail-body').innerHTML=`<div class="sheet-head"><h2>${escape(l.name)}</h2><button class="quiet" data-dismiss="details">Close</button></div><p>${escape(l.city)} · ${escape(l.country)} · ${escape(localTime(l))}</p><div class="detail-box"><strong class="phone-number">${escape(phone||'Phone unavailable')}</strong><p>Public contact · verify the shop and buyer first.</p>${l.shop_category?`<p>Map shop type: ${escape(l.shop_category.replaceAll('_',' '))}</p>`:''}<div class="contact-grid">${phone&&!blocked&&!pending&&l.callable?`<a class="primary" href="tel:${escape(phone)}">Call shop</a><a class="contact-link" href="https://wa.me/${phone.slice(1)}" target="_blank" rel="noopener">WhatsApp</a>`:''}<a class="contact-link" href="${escape(maps)}" target="_blank" rel="noopener">Maps</a>${safeHref(l.website)?`<a class="contact-link" href="${safeHref(l.website)}" target="_blank" rel="noopener">Website</a>`:''}${phone?'<button class="contact-link" id="copy-phone">Copy phone</button>':''}</div><p class="hint">WhatsApp availability and shop opening hours are unverified.</p></div><div class="detail-box"><h3>What to ask</h3><p>“Hello, I’m ${escape(state.caller)}. Am I speaking with the person who buys stock? Do you sell ${escape(product)}? What products do customers ask for, and what quantity and price would work for you?”</p><p class="hint">Suggested product category; confirm fit before offering a quote.</p></div>${l.notes?`<div class="detail-box"><h3>Last saved notes</h3><p>${escape(l.notes)}</p></div>`:''}${l.followup?`<p>Follow-up: ${escape(date(l.followup))}</p>`:''}<a class="contact-link" href="${safeHref(l.source_url)}" target="_blank" rel="noopener">View contact source</a>${!blocked&&!pending?'<button class="primary" id="detail-save">Record response / booking</button>':'<p class="hint">'+(blocked?'Do not contact: outreach is blocked.':'Sync the pending response before another call.')+'</p>'}`;
+ $('#copy-phone')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(phone);$('#copy-phone').textContent='Copied';}catch{$('#copy-phone').textContent='Select the phone number above';}});
+ $('#detail-save')?.addEventListener('click',()=>{$('#details').close();openOutcome(id);});$('#details').showModal();
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-dismiss]');if(b)document.getElementById(b.dataset.dismiss).close();});
+$('#settings-open').addEventListener('click',()=>{const f=$('#settings-form');f.elements.caller.value=state.caller;f.elements.size.value=localStorage.getItem('shop-text-size')||'16';$('#sync-status').textContent=(navigator.onLine?'Online':'Offline')+' · '+queued().length+' responses waiting to sync';$('#settings').showModal();});
+$('#settings-form').addEventListener('submit',e=>{e.preventDefault();const f=e.currentTarget;state.caller=f.elements.caller.value.trim();localStorage.setItem('shop-caller-name',state.caller);localStorage.setItem('shop-text-size',f.elements.size.value);document.documentElement.style.fontSize=f.elements.size.value+'px';$('#settings').close();render();});
+$('#sync-now').addEventListener('click',()=>{$('#settings').close();load().then(flush);});
+document.documentElement.style.fontSize=(localStorage.getItem('shop-text-size')==='18'?'18':'16')+'px';
