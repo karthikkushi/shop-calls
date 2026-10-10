@@ -1,0 +1,48 @@
+name: Daily shop and product research
+on:
+  schedule:
+    - cron: '37 3 * * *'
+    - cron: '7 5 * * *'
+  workflow_dispatch:
+    inputs:
+      daily:
+        description: Skip if already completed today
+        default: 'yes'
+        type: choice
+        options: ['yes', 'no']
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: fieldwork-research
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FIELDWORK_CLOUD_API: https://eojvxcwvnsowfifxehaa.supabase.co/functions/v1/shop-calls
+      FIELDWORK_OWNER_CODE: ${{ secrets.FIELDWORK_OWNER_CODE }}
+      FIELDWORK_CALLER_CODE: ${{ secrets.FIELDWORK_CALLER_CODE }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+      FIELDWORK_DAILY: ${{ inputs.daily || 'yes' }}
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - name: Install worker
+        run: pip install --disable-pip-version-check -r requirements.txt
+      - name: Find shops and research products
+        run: python -m backend.cloud_research_runner
+      - name: Keep backup schedule enabled
+        if: ${{ !cancelled() && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT 'repos/${{ github.repository }}/actions/workflows/research.yml/enable'
