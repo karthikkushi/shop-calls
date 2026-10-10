@@ -279,7 +279,7 @@ async def collect_run(identifier):
         progress()
         keywords={'desk':'cable organizer','pet':'pet hair remover','home':'storage organizer','travel':'packing cube','phone':'phone stand'}
         result['supplier'] = []
-        for topic in sorted(topics,key=lambda t:-t['last_week'])[:2]:
+        for topic in sorted(topics,key=lambda t:-t['last_week']):
             try:
                 found=await supplier.search(keywords[topic['id']])
                 topic['supplier_products']=found['products'][:3]
