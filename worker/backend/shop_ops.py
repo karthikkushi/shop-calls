@@ -315,3 +315,14 @@ async def run(access=Depends(owner)):
         return await asyncio.to_thread(shop_cloud.request,'/run','POST',{})
     from .daily_research import start_run
     return await start_run()
+
+
+@router.get('/quotes')
+def quote_workbench_list(access=Depends(owner)):
+    from .shop_cloud import request
+    return request('/quotes')
+
+@router.post('/quotes')
+def quote_workbench_save(body: dict, access=Depends(owner)):
+    from .shop_cloud import request
+    return request('/quotes','POST',body)
