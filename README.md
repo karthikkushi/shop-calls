@@ -19,4 +19,4 @@ Both need a private access code. No shop data or access codes are stored in this
 ## Not done yet
 
 - No automated tests.
-- `dashboard/` holds built files only; its source code is kept outside this repo.
+- `dashboard/` holds built files only; its source is in the private repo `karthikkushi/fieldwork` (`frontend/`).
