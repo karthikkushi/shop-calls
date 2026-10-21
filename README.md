@@ -20,4 +20,3 @@ Both need a private access code. No shop data or access codes are stored in this
 
 - No automated tests.
 - `dashboard/` holds built files only; its source code is kept outside this repo.
-- `dashboard/assets/` still has 13 old build files next to the 2 the page loads.
