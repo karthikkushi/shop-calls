@@ -1,6 +1,5 @@
 """Shared shop pipeline for the owner dashboard and a separate caller app."""
 import csv
-import hashlib
 import hmac
 import json
 import os
@@ -12,7 +11,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 import phonenumbers
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 ROOT = Path(__file__).resolve().parents[1]
