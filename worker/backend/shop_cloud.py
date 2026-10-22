@@ -33,7 +33,28 @@ def sync():
         leads=[ops.lead_record(r) for r in c.execute('SELECT * FROM leads')]
         topics=[json.loads(r[0]) for r in c.execute('SELECT payload FROM topics')]
     if config() and config().get('cloud_research') and not os.getenv('FIELDWORK_CLOUD_WORKER'): topics=[]
-    return request('/sync','POST',{'leads':leads,'topics':topics})
+    return send(leads,topics)
+
+# The cloud function refuses bodies over 1.8 MB (413) and more than 3000 leads per call; /sync only upserts,
+# so the upload is split into calls that stay under both.
+LIMIT=1_500_000
+
+def batches(items,limit=None,most=3000):
+    limit=limit or LIMIT
+    part,size=[],0
+    for item in items:
+        n=len(json.dumps(item))+2  # ', ' between items
+        if part and (size+n>limit or len(part)>=most):
+            yield part
+            part,size=[],0
+        part.append(item);size+=n
+    if part: yield part
+
+def send(leads,topics):
+    result={'synced':True}
+    for part in batches(leads): result=request('/sync','POST',{'leads':part,'topics':[]})
+    for part in batches(topics): result=request('/sync','POST',{'leads':[],'topics':part})
+    return result
 
 async def sync_loop():
     import asyncio
